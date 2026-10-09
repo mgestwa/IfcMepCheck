@@ -98,9 +98,11 @@ class ModelView:
         return self._systems[key]
 
     def ports_of(self, element: Entity) -> list[Entity]:
+        """Ports of the element in file order (the api order is not stable in IFC4X3)."""
         key = element.id()
         if key not in self._ports:
-            self._ports[key] = ifcopenshell.util.system.get_ports(element)
+            ports = ifcopenshell.util.system.get_ports(element)
+            self._ports[key] = sorted(ports, key=lambda port: port.id())
         return self._ports[key]
 
     def connected_port(self, port: Entity) -> Entity | None:

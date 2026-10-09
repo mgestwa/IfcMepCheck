@@ -192,9 +192,12 @@ class ModelBuilder:
         """Add one port to each element and connect them."""
         port_a = self.add_port(a, name=f"{a.Name} -> {b.Name}")
         port_b = self.add_port(b, name=f"{b.Name} -> {a.Name}")
+        self.connect_ports(port_a, port_b)
+        return port_a, port_b
+
+    def connect_ports(self, port_a: Entity, port_b: Entity) -> None:
         with self._owner():
             ifcopenshell.api.system.connect_port(self.file, port1=port_a, port2=port_b)
-        return port_a, port_b
 
     def view(self) -> ModelView:
         return ModelView(self.file, source="builder.ifc")
