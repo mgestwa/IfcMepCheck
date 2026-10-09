@@ -32,6 +32,7 @@ def check_storey(model: ModelView, config: Config) -> list[Issue]:
             issues.append(
                 MEP_008.issue(
                     model,
+                    config,
                     element,
                     message=f"{element_label(element)} is not contained in any building storey.",
                     evidence={"check": "no_storey", "kind": kind},
@@ -64,6 +65,7 @@ def check_storey(model: ModelView, config: Config) -> list[Issue]:
         issues.append(
             MEP_008.issue(
                 model,
+                config,
                 element,
                 message=message,
                 evidence={

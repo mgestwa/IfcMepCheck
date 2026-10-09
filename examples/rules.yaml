@@ -1,0 +1,34 @@
+# mepcheck configuration example.
+# Usage: mepcheck check model.ifc --config examples/rules.yaml
+
+# MEP-008: how far (in metres) an element may sit below its storey, or above
+# the next storey, before it is reported.
+storey_tolerance_m: 0.5
+
+# MEP-003: required properties per IFC4 class. IFC2x3 elements are matched
+# through their type, e.g. IfcFlowTerminal typed by IfcAirTerminalType counts
+# as IfcAirTerminal. A requirement is met by the first non-empty alternative.
+required_properties:
+  IfcAirTerminal:
+    - name: AirFlowRate
+      any_of:                          # Revit also exports its own property sets
+        - pset: Pset_AirTerminalOccurrence
+          property: AirFlowRate
+        - pset: Mechanical - Flow
+          property: Flow
+
+# MEP-005: ducts in these systems need an IfcCovering of type INSULATION.
+# Revit often exports the system PredefinedType as USERDEFINED or NOTDEFINED,
+# so systems are matched by name: adapt the patterns to the project convention.
+insulation:
+  required_for_system_names: ['^N\d*', '^CZ\d*']   # e.g. supply and outdoor air
+  classes: [IfcDuctSegment, IfcDuctFitting]
+
+# Exports without IfcSystem (e.g. older Revit versions) keep the system name
+# only as a property. Uncomment to use it for MEP-005 and MEP-006.
+# system_name_properties:
+#   - pset: Mechanical
+#     property: System Name
+
+severity_overrides:
+  MEP-004: info

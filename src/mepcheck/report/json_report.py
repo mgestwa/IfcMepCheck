@@ -22,7 +22,12 @@ def build_report(
             ifc_schema=model.schema,
             generated_at=datetime.now(UTC).replace(microsecond=0),
             config=config.model_dump(mode="json"),
-            rules=[rule.id for rule in rules],
+            rules=[rule.id for rule in rules if rule.is_configured(config)],
+            skipped_rules={
+                rule.id: f"not configured: {rule.requires}"
+                for rule in rules
+                if not rule.is_configured(config)
+            },
         ),
         issues=issues,
     )

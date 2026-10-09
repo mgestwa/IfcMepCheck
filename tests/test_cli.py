@@ -11,7 +11,20 @@ from mepcheck.kinds import ElementKind
 from mepcheck.report.json_report import read_json
 
 runner = CliRunner()
-ALL_RULES = ["MEP-001", "MEP-004", "MEP-007", "MEP-008"]
+ALL_RULES = ["MEP-001", "MEP-003", "MEP-004", "MEP-005", "MEP-006", "MEP-007", "MEP-008"]
+# MEP-003 and MEP-005 need a configuration section and are skipped without one.
+DEFAULT_RULES = ["MEP-001", "MEP-004", "MEP-006", "MEP-007", "MEP-008"]
+
+CONFIG = """\
+required_properties:
+  IfcAirTerminal:
+    - name: AirFlowRate
+      any_of:
+        - pset: Pset_AirTerminalOccurrence
+          property: AirFlowRate
+insulation:
+  required_for_system_names: ['^N']
+"""
 
 
 @pytest.fixture
@@ -34,8 +47,49 @@ def test_check_prints_summary_and_writes_json(tmp_path, model_with_issues):
     assert [issue.rule_id for issue in report.issues] == ["MEP-001", "MEP-004"]
     assert report.meta.file == "model.ifc"
     assert report.meta.ifc_schema == "IFC4"
-    assert report.meta.rules == ALL_RULES
+    assert report.meta.rules == DEFAULT_RULES
+    assert set(report.meta.skipped_rules) == {"MEP-003", "MEP-005"}
+    assert "Skipped: MEP-003" in result.output
     assert report.meta.config["storey_tolerance_m"] == 0.5
+
+
+def test_config_enables_rules_and_html_report(tmp_path, model_with_issues):
+    config = tmp_path / "rules.yaml"
+    config.write_text(CONFIG, encoding="utf-8")
+    html = tmp_path / "out" / "report.html"
+    json_path = tmp_path / "out" / "report.json"
+    args = ["--config", str(config), "--html", str(html), "--json", str(json_path)]
+    result = runner.invoke(app, ["check", str(model_with_issues), *args])
+
+    assert result.exit_code == 0, result.output
+    report = read_json(json_path)
+    assert report.meta.rules == ALL_RULES
+    assert report.meta.skipped_rules == {}
+    # The terminal has no airflow, the N1 ducts and the elbow have no insulation.
+    assert {issue.rule_id for issue in report.issues} >= {"MEP-003", "MEP-005"}
+    content = html.read_text(encoding="utf-8")
+    assert content.startswith("<!doctype html>")
+    assert all(issue.guids[0] in content for issue in report.issues)
+
+
+def test_invalid_config(tmp_path, model_with_issues):
+    config = tmp_path / "rules.yaml"
+    config.write_text("storey_tolerance_m: -1\nseverity_overrides:\n  MEP-999: info\n")
+    result = runner.invoke(app, ["check", str(model_with_issues), "--config", str(config)])
+    assert result.exit_code == 2
+    assert "rules.yaml:1: storey_tolerance_m" in result.output
+
+
+def test_console_limit(tmp_path):
+    line = ventilation_line()
+    for number in range(3):
+        line.builder.element(ElementKind.DUCT_SEGMENT, f"Stray {number}", storey=line.l0)
+    path = line.builder.write(tmp_path / "strays.ifc")
+
+    result = runner.invoke(app, ["check", str(path), "--limit", "1"])
+    assert result.exit_code == 0, result.output
+    assert "... 2 more MEP-001 issues" in result.output
+    assert runner.invoke(app, ["check", str(path), "--limit", "0"]).output.count("Stray") == 3
 
 
 def test_rule_selection(model_with_issues):

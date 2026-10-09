@@ -14,7 +14,7 @@ import ifcopenshell.util.placement
 import ifcopenshell.util.system
 import ifcopenshell.util.unit
 
-from mepcheck.kinds import SUPPORTED_SCHEMAS, ElementKind, element_kind, is_distribution_system
+from mepcheck.kinds import SUPPORTED_SCHEMAS, ElementKind, classify, is_distribution_system
 
 Entity = ifcopenshell.entity_instance
 
@@ -51,6 +51,8 @@ class ModelView:
         self._systems: dict[int, list[Entity]] = {}
         self._ports: dict[int, list[Entity]] = {}
         self._connected: dict[int, Entity | None] = {}
+        self._port_elements: dict[int, Entity | None] = {}
+        self._psets: dict[int, dict[str, dict[str, Any]]] = {}
 
     @classmethod
     def open(cls, path: str | Path) -> ModelView:
@@ -64,14 +66,34 @@ class ModelView:
         return cls(ifc_file, source=path.name)
 
     @cached_property
-    def elements(self) -> list[tuple[Entity, ElementKind]]:
-        """Elements recognised by element_kind(), in file order."""
-        result = []
+    def _classified(self) -> dict[int, tuple[Entity, ElementKind, str]]:
+        result = {}
         for element in self.file.by_type("IfcElement"):
-            kind = element_kind(element)
-            if kind is not None:
-                result.append((element, kind))
+            classified = classify(element)
+            if classified is not None:
+                result[element.id()] = (element, *classified)
         return result
+
+    @cached_property
+    def elements(self) -> list[tuple[Entity, ElementKind]]:
+        """Elements recognised by kinds.classify(), in file order."""
+        return [(element, kind) for element, kind, _ in self._classified.values()]
+
+    def kind_of(self, element: Entity) -> ElementKind | None:
+        entry = self._classified.get(element.id())
+        return entry[1] if entry is not None else None
+
+    def ifc4_class(self, element: Entity) -> str | None:
+        """IFC4 class name of an HVAC element in any schema, e.g. IfcAirTerminal."""
+        entry = self._classified.get(element.id())
+        return entry[2] if entry is not None else None
+
+    def psets_of(self, element: Entity) -> dict[str, dict[str, Any]]:
+        """Property and quantity sets, including those inherited from the type."""
+        key = element.id()
+        if key not in self._psets:
+            self._psets[key] = ifcopenshell.util.element.get_psets(element)
+        return self._psets[key]
 
     @cached_property
     def guid_index(self) -> dict[str, list[Entity]]:
@@ -110,6 +132,12 @@ class ModelView:
         if key not in self._connected:
             self._connected[key] = ifcopenshell.util.system.get_connected_port(port)
         return self._connected[key]
+
+    def port_element(self, port: Entity) -> Entity | None:
+        key = port.id()
+        if key not in self._port_elements:
+            self._port_elements[key] = ifcopenshell.util.system.get_port_element(port)
+        return self._port_elements[key]
 
     @cached_property
     def storeys(self) -> list[Storey]:

@@ -34,6 +34,20 @@ def test_element_without_system(schema):
     assert issue.evidence == {"kind": "duct_segment"}
 
 
+def test_system_only_in_property_is_still_reported(schema):
+    line = ventilation_line(schema)
+    stray = line.builder.element(ElementKind.DUCT_SEGMENT, "Revit duct", storey=line.l0)
+    line.builder.pset(stray, "Mechanical", {"System Name": "Mechanical Supply Air 1"})
+    config = Config.model_validate(
+        {"system_name_properties": [{"pset": "Mechanical", "property": "System Name"}]}
+    )
+
+    [issue] = run_rules(line.view(), config, ["MEP-001"])
+    assert issue.system == "Mechanical Supply Air 1"
+    assert issue.evidence["system_names_from_properties"] == ["Mechanical Supply Air 1"]
+    assert "export IFC systems" in issue.message
+
+
 def test_zone_does_not_count_as_system():
     line = ventilation_line("IFC4")
     element = line.builder.element(ElementKind.AIR_TERMINAL, "Zoned diffuser", storey=line.l0)

@@ -32,6 +32,7 @@ def check_open_ports(model: ModelView, config: Config) -> list[Issue]:
         issues.append(
             MEP_004.issue(
                 model,
+                config,
                 element,
                 message=(
                     f"{element_label(element)}: {len(open_ports)} of {len(ports)} "

@@ -44,7 +44,7 @@ HVAC_CLASSES: tuple[str, ...] = tuple(
 )
 
 _KIND_BY_CLASS = {name: kind for kind, names in OCCURRENCE_CLASSES.items() for name in names}
-_KIND_BY_TYPE = {name: kind for kind, names in TYPE_CLASSES.items() for name in names}
+_CLASS_BY_TYPE = {f"{name}Type": name for name in HVAC_CLASSES}
 
 # IfcSystem subclasses that group elements for other purposes than distribution.
 _NON_DISTRIBUTION_GROUPS = frozenset(
@@ -52,14 +52,25 @@ _NON_DISTRIBUTION_GROUPS = frozenset(
 )
 
 
+def classify(element: ifcopenshell.entity_instance) -> tuple[ElementKind, str] | None:
+    """Kind and IFC4 class of an element, by its class, then by its type; else None.
+
+    The IFC4 class lets configuration name classes once for all schemas: an
+    IFC2x3 IfcFlowTerminal typed by IfcAirTerminalType is an "IfcAirTerminal".
+    """
+    ifc_class = element.is_a()
+    if ifc_class not in _KIND_BY_CLASS:
+        element_type = ifcopenshell.util.element.get_type(element)
+        ifc_class = _CLASS_BY_TYPE.get(element_type.is_a()) if element_type is not None else None
+        if ifc_class is None:
+            return None
+    return _KIND_BY_CLASS[ifc_class], ifc_class
+
+
 def element_kind(element: ifcopenshell.entity_instance) -> ElementKind | None:
     """Return the kind of an element by its class, then by its type, else None."""
-    kind = _KIND_BY_CLASS.get(element.is_a())
-    if kind is None:
-        element_type = ifcopenshell.util.element.get_type(element)
-        if element_type is not None:
-            kind = _KIND_BY_TYPE.get(element_type.is_a())
-    return kind
+    result = classify(element)
+    return result[0] if result is not None else None
 
 
 def is_distribution_system(group: ifcopenshell.entity_instance) -> bool:

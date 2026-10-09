@@ -64,6 +64,7 @@ class ReportMeta(BaseModel):
     generated_at: datetime
     config: dict[str, Any]
     rules: list[str]
+    skipped_rules: dict[str, str] = Field(default_factory=dict)  # rule id -> reason
 
 
 class Report(BaseModel):

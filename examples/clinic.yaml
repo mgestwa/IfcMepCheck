@@ -1,0 +1,22 @@
+# Configuration for the open "Medical-Dental Clinic" HVAC sample model:
+#   python scripts/get_samples.py clinic-hvac
+#   mepcheck check samples/Clinic_HVAC.ifc --config examples/clinic.yaml --html out/clinic.html
+#
+# The Revit export has no IfcSystem: system names are read from the
+# "Mechanical" property set, and airflow from "Mechanical - Flow".
+
+required_properties:
+  IfcAirTerminal:
+    - name: AirFlowRate
+      any_of:
+        - pset: Pset_AirTerminalOccurrence
+          property: AirFlowRate
+        - pset: Mechanical - Flow
+          property: Flow
+
+insulation:
+  required_for_system_names: ['Supply Air']
+
+system_name_properties:
+  - pset: Mechanical
+    property: System Name

@@ -14,6 +14,7 @@ import ifcopenshell.api.geometry
 import ifcopenshell.api.owner
 import ifcopenshell.api.owner.settings
 import ifcopenshell.api.project
+import ifcopenshell.api.pset
 import ifcopenshell.api.root
 import ifcopenshell.api.spatial
 import ifcopenshell.api.system
@@ -177,10 +178,54 @@ class ModelBuilder:
                 ifcopenshell.api.spatial.assign_container(
                     self.file, products=[element], relating_structure=storey
                 )
-            if system is not None:
-                ifcopenshell.api.system.assign_system(self.file, products=[element], system=system)
             self._place(element, at)
+        if system is not None:
+            self.assign_system(element, system)
         return element
+
+    def assign_system(self, element: Entity, system: Entity) -> None:
+        with self._owner():
+            ifcopenshell.api.system.assign_system(self.file, products=[element], system=system)
+
+    def element_type(self, kind: ElementKind, element: Entity) -> Entity:
+        """Type object of ``kind`` (created once per kind), assigned to ``element``."""
+        with self._owner():
+            if kind not in self._types:
+                type_class = (
+                    _IFC2X3_CLASS_AND_TYPE[kind][1]
+                    if self.schema == "IFC2X3"
+                    else f"{_IFC4_CLASS[kind]}Type"
+                )
+                self._types[kind] = ifcopenshell.api.root.create_entity(
+                    self.file, ifc_class=type_class, name=f"{kind} type"
+                )
+            ifcopenshell.api.type.assign_type(
+                self.file, related_objects=[element], relating_type=self._types[kind]
+            )
+        return self._types[kind]
+
+    def pset(self, product: Entity, name: str, properties: dict) -> Entity:
+        """Property set on an occurrence or a type object."""
+        with self._owner():
+            pset = ifcopenshell.api.pset.add_pset(self.file, product=product, name=name)
+            ifcopenshell.api.pset.edit_pset(self.file, pset=pset, properties=properties)
+        return pset
+
+    def insulate(self, element: Entity, predefined_type: str = "INSULATION") -> Entity:
+        """IfcCovering attached with IfcRelCoversBldgElements (no api function for it)."""
+        with self._owner():
+            covering = ifcopenshell.api.root.create_entity(
+                self.file,
+                ifc_class="IfcCovering",
+                predefined_type=predefined_type,
+                name=f"{element.Name} insulation",
+            )
+            rel = ifcopenshell.api.root.create_entity(
+                self.file, ifc_class="IfcRelCoversBldgElements"
+            )
+            rel.RelatingBuildingElement = element
+            rel.RelatedCoverings = [covering]
+        return covering
 
     def add_port(self, element: Entity, name: str | None = None) -> Entity:
         with self._owner():

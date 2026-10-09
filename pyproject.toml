@@ -21,7 +21,9 @@ classifiers = [
 ]
 dependencies = [
     "ifcopenshell>=0.9,<0.10",
+    "jinja2>=3.1",
     "pydantic>=2.7,<3",
+    "pyyaml>=6",
     "rich>=13.8",
     "typer>=0.12",
 ]
@@ -59,6 +61,7 @@ select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF", "TID251"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
+markers = ["sample: runs on open sample models from scripts/get_samples.py (skipped if absent)"]
 
 [tool.coverage.run]
 source = ["mepcheck"]

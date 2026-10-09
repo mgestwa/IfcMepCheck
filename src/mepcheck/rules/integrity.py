@@ -32,6 +32,7 @@ def check_duplicate_guids(model: ModelView, config: Config) -> list[Issue]:
         issues.append(
             MEP_007.issue(
                 model,
+                config,
                 entities[0],
                 message=f"GlobalId {guid} is used by {len(entities)} entities ({classes}).",
                 evidence={

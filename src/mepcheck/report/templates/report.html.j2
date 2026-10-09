@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mepcheck: {{ meta.file or "report" }}</title>
+<style>
+:root {
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --border: #d1d9e0; --panel: #f6f8fa;
+  --accent: #0969da;
+  --error: #cf222e; --error-bg: #ffebe9;
+  --warning: #9a6700; --warning-bg: #fff8c5;
+  --info: #0969da; --info-bg: #ddf4ff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --border: #3d444d; --panel: #151b23;
+    --accent: #4493f8;
+    --error: #ff7b72; --error-bg: #3c1618;
+    --warning: #d29922; --warning-bg: #3a2a07;
+    --info: #58a6ff; --info-bg: #0c2d6b;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1400px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+h2 { font-size: 16px; margin: 28px 0 10px; }
+.meta, .skipped { color: var(--muted); margin: 0 0 12px; }
+.meta span + span::before { content: "\00A0\00B7\00A0"; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.card { border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; background: var(--panel); }
+.card .n { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.card.error .n { color: var(--error); }
+.card.warning .n { color: var(--warning); }
+.card.info .n { color: var(--info); }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { position: sticky; top: 0; background: var(--bg); color: var(--muted); font-size: 12px;
+  font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.nowrap { white-space: nowrap; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--panel); }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.badge.error { color: var(--error); background: var(--error-bg); }
+.badge.warning { color: var(--warning); background: var(--warning-bg); }
+.badge.info { color: var(--info); background: var(--info-bg); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 0 0 10px; }
+select, input[type=search] { font: inherit; color: inherit; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+input[type=search] { flex: 1 1 240px; max-width: 420px; }
+#f-count { color: var(--muted); }
+.cls { color: var(--muted); font-size: 12px; }
+.guid { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; white-space: nowrap; }
+button.copy { font: inherit; font-size: 11px; margin-left: 4px; padding: 0 6px; cursor: pointer;
+  color: var(--muted); background: var(--panel); border: 1px solid var(--border); border-radius: 4px; }
+button.copy.done { color: var(--accent); border-color: var(--accent); }
+details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+pre { margin: 6px 0 0; padding: 8px; max-width: 70ch; overflow: auto; font-size: 12px;
+  background: var(--panel); border-radius: 6px; }
+.empty { padding: 24px; text-align: center; color: var(--muted); border: 1px dashed var(--border); border-radius: 8px; }
+footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+<h1>MEP model check: {{ meta.file or "model" }}</h1>
+<p class="meta"><span>{{ meta.ifc_schema }}</span><span>mepcheck {{ meta.version }}</span><span>{{ generated }}</span><span>rules: {{ meta.rules | join(", ") or "none" }}</span></p>
+{% if meta.skipped_rules %}
+<p class="skipped">Skipped: {% for rule_id, reason in meta.skipped_rules.items() %}{{ rule_id }} ({{ reason }}){% if not loop.last %}, {% endif %}{% endfor %}</p>
+{% endif %}
+
+<section class="cards">
+  <div class="card"><div class="n">{{ issues | length }}</div>issues</div>
+{% for severity in severities %}
+  <div class="card {{ severity }}"><div class="n">{{ totals[severity] }}</div>{{ severity }}</div>
+{% endfor %}
+</section>
+
+<h2>Summary by rule</h2>
+<div class="table-wrap">
+<table id="summary">
+<thead><tr><th>Rule</th><th>Title</th>{% for severity in severities %}<th class="num">{{ severity }}</th>{% endfor %}</tr></thead>
+<tbody>
+{% for row in rule_rows %}
+<tr class="clickable" data-rule="{{ row.id }}" title="Show only {{ row.id }}"><td class="nowrap">{{ row.id }}</td><td>{{ row.title }}</td>{% for severity in severities %}<td class="num">{{ row.counts[severity] }}</td>{% endfor %}</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+
+<h2>Issues</h2>
+{% if issues %}
+<div class="filters">
+  <label>Rule <select id="f-rule"><option value="">All</option>{% for row in rule_rows %}<option value="{{ row.id }}">{{ row.id }} {{ row.title }}</option>{% endfor %}</select></label>
+  <label>Severity <select id="f-severity"><option value="">All</option>{% for severity in severities %}<option value="{{ severity }}">{{ severity }}</option>{% endfor %}</select></label>
+  <input type="search" id="f-text" placeholder="Search name, GlobalId, storey, system, message" aria-label="Search issues">
+  <span id="f-count">{{ issues | length }} of {{ issues | length }}</span>
+</div>
+<div class="table-wrap">
+<table id="issues">
+<thead><tr><th>Severity</th><th>Rule</th><th>Element</th><th>Storey</th><th>System</th><th>GlobalId</th><th>Message</th>{% if has_llm %}<th>Explanation</th><th>Suggested fix</th>{% endif %}</tr></thead>
+<tbody>
+{% for issue in issues %}
+<tr data-rule="{{ issue.rule_id }}" data-severity="{{ issue.severity.value }}">
+<td><span class="badge {{ issue.severity.value }}">{{ issue.severity.value }}</span></td>
+<td class="nowrap">{{ issue.rule_id }}</td>
+<td>{{ issue.element_name or "-" }}<div class="cls">{{ issue.ifc_class }}</div></td>
+<td>{{ issue.storey or "-" }}</td>
+<td>{{ issue.system or "-" }}</td>
+<td>{% for guid in issue.guids %}<div class="guid">{{ guid }}<button class="copy" type="button" data-copy="{{ guid }}" title="Copy GlobalId">copy</button></div>{% endfor %}</td>
+<td>{{ issue.message }}{% if issue.evidence %}<details><summary>evidence</summary><pre>{{ issue.evidence | tojson(indent=2) }}</pre></details>{% endif %}</td>
+{% if has_llm %}
+<td>{{ issue.explanation or "" }}</td>
+<td>{{ issue.suggested_fix or "" }}</td>
+{% endif %}
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% else %}
+<p class="empty">No issues found.</p>
+{% endif %}
+<footer>Generated by mepcheck {{ meta.version }}. Rules decide, the LLM only explains.</footer>
+</main>
+<script>
+(function () {
+  var rows = Array.prototype.slice.call(document.querySelectorAll("#issues tbody tr"));
+  if (!rows.length) return;
+  var rule = document.getElementById("f-rule");
+  var severity = document.getElementById("f-severity");
+  var search = document.getElementById("f-text");
+  var count = document.getElementById("f-count");
+  var text = rows.map(function (row) { return row.textContent.toLowerCase(); });
+
+  function apply() {
+    var r = rule.value, s = severity.value, q = search.value.trim().toLowerCase(), shown = 0;
+    rows.forEach(function (row, i) {
+      var ok = (!r || row.dataset.rule === r) && (!s || row.dataset.severity === s) &&
+        (!q || text[i].indexOf(q) !== -1);
+      row.hidden = !ok;
+      if (ok) shown++;
+    });
+    count.textContent = shown + " of " + rows.length;
+  }
+
+  rule.addEventListener("change", apply);
+  severity.addEventListener("change", apply);
+  search.addEventListener("input", apply);
+  document.querySelectorAll("#summary tr[data-rule]").forEach(function (tr) {
+    tr.addEventListener("click", function () {
+      rule.value = tr.dataset.rule;
+      apply();
+      document.getElementById("issues").scrollIntoView({ behavior: "smooth" });
+    });
+  });
+})();
+
+document.addEventListener("click", function (event) {
+  var button = event.target.closest("button[data-copy]");
+  if (!button) return;
+  var value = button.dataset.copy;
+  function done() {
+    button.textContent = "copied";
+    button.classList.add("done");
+    setTimeout(function () { button.textContent = "copy"; button.classList.remove("done"); }, 1200);
+  }
+  function fallback() {
+    var area = document.createElement("textarea");
+    area.value = value;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    try { document.execCommand("copy"); done(); } finally { area.remove(); }
+  }
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(value).then(done, fallback);
+  } else {
+    fallback();
+  }
+});
+</script>
+</body>
+</html>
