@@ -1,0 +1,60 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Environments and secrets (only .env.example is committed) ---
+.venv/
+venv/
+.conda/
+.env
+.env.*
+!.env.example
+
+# --- Tooling ---
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# --- BIM data: never commit models or project documents ---
+# Open sample models are fetched by scripts/get_samples.py.
+# Case-insensitive patterns: Linux/CI is case-sensitive, exports are often *.IFC
+*.[iI][fF][cC]
+*.[iI][fF][cC][zZ][iI][pP]
+*.[iI][fF][cC][xX][mM][lL]
+*.[rR][vV][tT]
+*.[rR][fF][aA]
+*.[nN][wW][cC]
+*.[nN][wW][dD]
+*.[pP][dD][fF]
+/samples/
+
+# --- Generated reports ---
+# Not *.html / *.json globally: templates and test snapshots are committed
+/out/
+*.[bB][cC][fF]
+*.[bB][cC][fF][zZ][iI][pP]
+
+# --- LLM response cache ---
+.mepcheck_cache/
+
+# --- Private, local-only files ---
+SPEC.md
+/private/
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# --- Claude Code ---
+.claude/settings.local.json

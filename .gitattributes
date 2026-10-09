@@ -1,0 +1,5 @@
+# Normalize line endings to LF (ruff format, CI on Ubuntu)
+* text=auto eol=lf
+
+*.png binary
+*.gif binary
