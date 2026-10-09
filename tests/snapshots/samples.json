@@ -1,0 +1,58 @@
+{
+  "Building-Hvac_IFC2X3.ifc": {
+    "config": "rules.yaml",
+    "counts": {
+      "MEP-003": {
+        "warning": 2
+      }
+    },
+    "ids_sha256": "cc1f72d0ab338323ff258d3a0acf6d00dfa6eaaa0d1f4ecfbf8e427e9af9d209",
+    "issues": 2
+  },
+  "Building-Hvac_IFC4.ifc": {
+    "config": "rules.yaml",
+    "counts": {
+      "MEP-003": {
+        "warning": 2
+      }
+    },
+    "ids_sha256": "cc1f72d0ab338323ff258d3a0acf6d00dfa6eaaa0d1f4ecfbf8e427e9af9d209",
+    "issues": 2
+  },
+  "Building-Hvac_IFC4X3.ifc": {
+    "config": "rules.yaml",
+    "counts": {
+      "MEP-003": {
+        "warning": 2
+      }
+    },
+    "ids_sha256": "cc1f72d0ab338323ff258d3a0acf6d00dfa6eaaa0d1f4ecfbf8e427e9af9d209",
+    "issues": 2
+  },
+  "Clinic_HVAC.ifc": {
+    "config": "clinic.yaml",
+    "counts": {
+      "MEP-001": {
+        "error": 3626
+      },
+      "MEP-005": {
+        "warning": 1956
+      }
+    },
+    "ids_sha256": "92543bb2adb0dfe5c9767d2d2f2a8cb74765e5b52744ea7fae6fc2a707c1ea09",
+    "issues": 5582
+  },
+  "Duplex_MEP_20110907.ifc": {
+    "config": "rules.yaml",
+    "counts": {
+      "MEP-001": {
+        "error": 6
+      },
+      "MEP-008": {
+        "warning": 1
+      }
+    },
+    "ids_sha256": "ad8f23328ac6c5b46bfd85ab76b89a4b471e226810cc59b0465ad5703139cdcb",
+    "issues": 7
+  }
+}

@@ -39,3 +39,21 @@ jobs:
       - run: pytest --cov=mepcheck --cov-report=term-missing
       - name: Rules coverage gate (at least 80%)
         run: coverage report --include="*/mepcheck/rules/*" --fail-under=80
+
+  samples:
+    # Regression test on the open sample models (issue counts and ids per rule).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - uses: actions/cache@v4
+        with:
+          path: samples
+          key: samples-${{ hashFiles('scripts/get_samples.py') }}
+      - run: python -m pip install -e ".[dev]"
+      - run: python scripts/get_samples.py --all
+      - run: pytest -m sample -v
