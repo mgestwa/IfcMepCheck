@@ -1,23 +1,28 @@
-"""Command line interface: mepcheck check | rules."""
+"""Command line interface: mepcheck check | rules | explain | mcp."""
 
 from __future__ import annotations
 
+import logging
+import os
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
 
 import typer
+from pydantic import ValidationError
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
 from mepcheck.config import Config, ConfigError, load_config
 from mepcheck.issues import Severity
+from mepcheck.llm.client import LLMError, ResponseCache, client_from_env
+from mepcheck.llm.explain import explain_report
 from mepcheck.model import ModelLoadError, ModelView
 from mepcheck.report.bcf_export import write_bcf
 from mepcheck.report.console import print_report
 from mepcheck.report.html_report import write_html
-from mepcheck.report.json_report import build_report, write_json
+from mepcheck.report.json_report import build_report, read_json, write_json
 from mepcheck.rules import UnknownRuleError, get_rules, run_rules
 
 app = typer.Typer(
@@ -31,6 +36,11 @@ app = typer.Typer(
 class FailOn(StrEnum):
     ERROR = "error"
     WARNING = "warning"
+
+
+class Language(StrEnum):
+    EN = "en"
+    PL = "pl"
 
 
 @app.command()
@@ -112,3 +122,84 @@ def list_rules() -> None:
             rule.requires or "-",
         )
     Console().print(table)
+
+
+@app.command()
+def explain(
+    report_path: Annotated[Path, typer.Argument(help="JSON report written by mepcheck check.")],
+    lang: Annotated[Language, typer.Option(help="Language of the explanations.")] = Language.EN,
+    ifc_path: Annotated[
+        Path | None,
+        typer.Option("--ifc", help="IFC model of the report: adds trimmed property sets."),
+    ] = None,
+    out_path: Annotated[
+        Path | None,
+        typer.Option("--out", help="Explained JSON report (default: update the input file)."),
+    ] = None,
+    html_path: Annotated[
+        Path | None, typer.Option("--html", help="Also write the HTML report.")
+    ] = None,
+    bcf_path: Annotated[
+        Path | None, typer.Option("--bcf", help="Also write a BCF 2.1 file.")
+    ] = None,
+    max_issues: Annotated[
+        int, typer.Option(min=0, help="Issues sent to the LLM, most severe first (0 = all).")
+    ] = 50,
+    force: Annotated[bool, typer.Option(help="Explain issues that already have one.")] = False,
+) -> None:
+    """Add LLM explanations and suggested fixes to a JSON report.
+
+    The provider and model come from MEPCHECK_LLM_PROVIDER and MEPCHECK_LLM_MODEL.
+    The rules decide what is an issue; the LLM only explains it.
+    """
+    console = Console()
+    errors = Console(stderr=True)
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
+    try:
+        report = read_json(report_path)
+        model = ModelView.open(ifc_path) if ifc_path is not None else None
+    except (OSError, ValidationError, ModelLoadError) as exc:
+        errors.print(Text(f"Error: {exc}", style="red"))
+        raise typer.Exit(code=2) from exc
+
+    try:
+        client = client_from_env()
+    except LLMError as exc:
+        errors.print(Text(f"Warning: {exc}; the report is left without explanations.", "yellow"))
+    else:
+        cache = ResponseCache(os.environ.get("MEPCHECK_CACHE_DIR", ".mepcheck_cache"))
+        stats = explain_report(
+            report,
+            client,
+            lang=lang.value,
+            model=model,
+            cache=cache,
+            max_issues=max_issues,
+            force=force,
+        )
+        console.print(
+            Text(
+                f"{client.provider}/{client.model}: {stats.explained} explained, "
+                f"{stats.cached} from cache, {stats.failed} failed, "
+                f"{stats.skipped} over --max-issues."
+            )
+        )
+
+    console.print(Text(f"JSON report: {write_json(report, out_path or report_path)}"))
+    if html_path is not None:
+        console.print(Text(f"HTML report: {write_html(report, html_path)}"))
+    if bcf_path is not None:
+        console.print(Text(f"BCF file: {write_bcf(report, bcf_path)}"))
+
+
+@app.command("mcp")
+def mcp_server() -> None:
+    """Run the MCP server on stdio, for Claude Code, Claude Desktop and other MCP clients."""
+    try:
+        from mepcheck.mcp_server import create_server
+    except ImportError as exc:
+        Console(stderr=True).print(
+            Text("Error: the MCP server needs: pip install 'mepcheck[mcp]'", style="red")
+        )
+        raise typer.Exit(code=2) from exc
+    create_server().run("stdio")

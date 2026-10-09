@@ -7,11 +7,14 @@ import pytest
 from typer.testing import CliRunner
 
 from builders import ventilation_line
+from fake_llm import FakeLLM
 from mepcheck.cli import app
 from mepcheck.kinds import ElementKind
+from mepcheck.llm.client import LLMError
 from mepcheck.report.json_report import read_json
 
 runner = CliRunner()
+WIDE = {"COLUMNS": "200"}  # keep rich from wrapping long lines in assertions
 ALL_RULES = ["MEP-001", "MEP-003", "MEP-004", "MEP-005", "MEP-006", "MEP-007", "MEP-008"]
 # MEP-003 and MEP-005 need a configuration section and are skipped without one.
 DEFAULT_RULES = ["MEP-001", "MEP-004", "MEP-006", "MEP-007", "MEP-008"]
@@ -81,6 +84,58 @@ def test_bcf_export(tmp_path, model_with_issues):
     with zipfile.ZipFile(bcf) as archive:
         markups = [name for name in archive.namelist() if name.endswith("markup.bcf")]
     assert len(markups) == 2
+
+
+@pytest.fixture
+def report_json(tmp_path, model_with_issues):
+    path = tmp_path / "report.json"
+    result = runner.invoke(app, ["check", str(model_with_issues), "--json", str(path)])
+    assert result.exit_code == 0, result.output
+    return path
+
+
+def test_explain_writes_explanations_to_json_and_html(tmp_path, report_json, monkeypatch):
+    llm = FakeLLM()
+    monkeypatch.setattr("mepcheck.cli.client_from_env", lambda: llm)
+    monkeypatch.setenv("MEPCHECK_CACHE_DIR", str(tmp_path / "cache"))
+    html = tmp_path / "explained.html"
+    args = ["--lang", "pl", "--html", str(html), "--ifc", str(tmp_path / "model.ifc")]
+    result = runner.invoke(app, ["explain", str(report_json), *args], env=WIDE)
+
+    assert result.exit_code == 0, result.output
+    assert "fake/fake-1: 2 explained, 0 from cache" in result.output
+    report = read_json(report_json)
+    assert all(issue.explanation and issue.suggested_fix for issue in report.issues)
+    assert "Write in Polish." in llm.calls[0][0]
+    assert "property_sets" in llm.calls[0][1][0]["element"]
+    content = html.read_text(encoding="utf-8")
+    assert "Suggested fix" in content
+    assert report.issues[0].suggested_fix in content
+
+    # Same language and context: answered from the cache. Another language is a new request.
+    again = runner.invoke(app, ["explain", str(report_json), *args, "--force"], env=WIDE)
+    assert "0 explained, 2 from cache" in again.output
+    english = runner.invoke(app, ["explain", str(report_json), "--force"], env=WIDE)
+    assert "2 explained, 0 from cache" in english.output
+
+
+def test_explain_without_llm_keeps_report(tmp_path, report_json, monkeypatch):
+    def unavailable():
+        raise LLMError("Set MEPCHECK_LLM_MODEL to an OpenAI model name")
+
+    monkeypatch.setattr("mepcheck.cli.client_from_env", unavailable)
+    out = tmp_path / "copy.json"
+    result = runner.invoke(app, ["explain", str(report_json), "--out", str(out)], env=WIDE)
+    assert result.exit_code == 0, result.output
+    assert "left without explanations" in result.output
+    assert read_json(out).issues == read_json(report_json).issues
+
+
+def test_explain_invalid_report(tmp_path):
+    path = tmp_path / "broken.json"
+    path.write_text("{}", encoding="utf-8")
+    result = runner.invoke(app, ["explain", str(path)])
+    assert result.exit_code == 2
 
 
 def test_invalid_config(tmp_path, model_with_issues):
