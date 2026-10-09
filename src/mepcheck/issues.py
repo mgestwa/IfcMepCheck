@@ -61,6 +61,7 @@ class ReportMeta(BaseModel):
     version: str
     file: str | None
     ifc_schema: str
+    ifc_project: str | None = None  # GlobalId of IfcProject, for the BCF header
     generated_at: datetime
     config: dict[str, Any]
     rules: list[str]

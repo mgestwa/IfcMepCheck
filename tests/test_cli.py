@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+import zipfile
 
 import pytest
 from typer.testing import CliRunner
@@ -70,6 +71,16 @@ def test_config_enables_rules_and_html_report(tmp_path, model_with_issues):
     content = html.read_text(encoding="utf-8")
     assert content.startswith("<!doctype html>")
     assert all(issue.guids[0] in content for issue in report.issues)
+
+
+def test_bcf_export(tmp_path, model_with_issues):
+    bcf = tmp_path / "out" / "issues.bcf"
+    result = runner.invoke(app, ["check", str(model_with_issues), "--bcf", str(bcf)])
+    assert result.exit_code == 0, result.output
+    assert "BCF file:" in result.output
+    with zipfile.ZipFile(bcf) as archive:
+        markups = [name for name in archive.namelist() if name.endswith("markup.bcf")]
+    assert len(markups) == 2
 
 
 def test_invalid_config(tmp_path, model_with_issues):

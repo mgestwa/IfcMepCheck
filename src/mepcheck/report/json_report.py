@@ -20,6 +20,7 @@ def build_report(
             version=__version__,
             file=model.source,
             ifc_schema=model.schema,
+            ifc_project=model.project_guid,
             generated_at=datetime.now(UTC).replace(microsecond=0),
             config=config.model_dump(mode="json"),
             rules=[rule.id for rule in rules if rule.is_configured(config)],

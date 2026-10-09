@@ -14,6 +14,7 @@ from rich.text import Text
 from mepcheck.config import Config, ConfigError, load_config
 from mepcheck.issues import Severity
 from mepcheck.model import ModelLoadError, ModelView
+from mepcheck.report.bcf_export import write_bcf
 from mepcheck.report.console import print_report
 from mepcheck.report.html_report import write_html
 from mepcheck.report.json_report import build_report, write_json
@@ -49,6 +50,10 @@ def check(
     html_path: Annotated[
         Path | None, typer.Option("--html", help="Write the HTML report to this file.")
     ] = None,
+    bcf_path: Annotated[
+        Path | None,
+        typer.Option("--bcf", help="Write a BCF 2.1 file with one topic per issue."),
+    ] = None,
     fail_on: Annotated[
         FailOn | None,
         typer.Option(help="Exit with code 1 if any issue has at least this severity."),
@@ -78,6 +83,8 @@ def check(
         console.print(Text(f"JSON report: {write_json(report, json_path)}"))
     if html_path is not None:
         console.print(Text(f"HTML report: {write_html(report, html_path)}"))
+    if bcf_path is not None:
+        console.print(Text(f"BCF file: {write_bcf(report, bcf_path)}"))
 
     if fail_on is not None:
         threshold = Severity(fail_on.value).rank

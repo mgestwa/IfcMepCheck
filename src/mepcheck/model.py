@@ -66,6 +66,11 @@ class ModelView:
         return cls(ifc_file, source=path.name)
 
     @cached_property
+    def project_guid(self) -> str | None:
+        projects = self.file.by_type("IfcProject")
+        return projects[0].GlobalId if projects else None
+
+    @cached_property
     def _classified(self) -> dict[int, tuple[Entity, ElementKind, str]]:
         result = {}
         for element in self.file.by_type("IfcElement"):
